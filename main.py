@@ -49,13 +49,65 @@ app.logger.setLevel(logging.INFO)
 app.config['JSONIFY_PRETTYPRINT_REGULAR'] = False
 app.url_map.strict_slashes = False
 
-@app.route('/news_sub', methods=['POST'])
-def email():
-  # email_txt = request.form['email']
-  welcome_email = Message("Welcome to ArkVision", sender='infospaceshadow@gmail.com', recipients=['miguelbacharov20@gmail.com'])
-  welcome_email.html = '<h1> Thank you for subscribing to us! </h1> <hr> <p> We hope you will continue with us in our exciting journey into the future of Fintech & Blockchain! We have much exciting stuff planned for the future, and we would like you to be a part of it! 🤗 </p> <p> ☺️ Help us grow by mentioning us to your friends or via social media. </p> <p> Stay tuned on our social media platforms to keep up-to-date with us and our progress! </p> <hr> <br> <p> For any questions, please email us to contactus@napierfintech.com 24/7 </p> <p> If you consider sponsoring us ❤️, please email us to napierblockchain@gmail.com 24/7 </p> <br> <p> Fintech & Blockchain Society | Edinburgh Napier Univeristy | <b> Striving for Future Knowledge </b> </p>'                                                        #Customize based on user input
-  mail.send(welcome_email)
+# =====
+# NEWSLETTER SUB. ENDPOINTS
+# ====
+
+def news_sub_email(email):
+  email_layout = Message("Welcome to ArkVision", sender='infospaceshadow@gmail.com', recipients=[email])
+  email_layout.html = render_template('newsletter_welcome.html', email=email)
+  mail.send(email_layout)
   return "Success"
+
+@app.route('/news_sub', methods=['POST'])
+def news_sub():
+  """
+  email(): Subscribes user to newsletter, returns Success / Error Message user
+  """
+  try:
+    data = request.json
+    email = data['email']
+    if app.debug:
+      app.logger.info(email)
+    # Check if email is already registerd on the newsletter list, send conf. email if exists, and add to database,
+    doc_ref = db.collection(u'newsletter_list').document(email)
+    doc = doc_ref.get()
+    if doc.exists:
+      if app.debug:
+        app.logger.info(f'Email already exists: {doc.to_dict()}')
+      return jsonify({'errors': 'Email Already Registered!'})
+
+    # Email not yet registered with us!
+    else:
+      if app.debug:
+        app.logger.info(f'Email does not Exists: {doc.to_dict()}')
+      doc_ref = db.collection(u'newsletter_list').document(email)
+      doc_ref.set({
+        u'timestamp': firestore.SERVER_TIMESTAMP
+      })
+      news_sub_email(email) # Send welcoming email
+      return jsonify({'ok': 'Success!'})
+ 
+  except Exception as e:
+    return f"An Error Occured: {e}"
+
+@app.route('/news_unsub/<string:email>')
+def news_unsub(email):
+  """
+  news_unsub(): Unsubscribe user from the email list;
+  """
+  try:
+    if app.debug:
+      app.logger.info(email)
+    # Remove email form the email-list
+    doc_ref = db.collection(u'newsletter_list').document(email).delete()
+    return render_template('news_unsub.html')
+  except Exception as e:
+    return f"An Error Occured: {e}"
+
+# =====
+# NOTIFICATION LAUNCH ENDPOINTS
+# ====
 
 @app.route('/email_notif', methods=['POST'])
 def email_notif():
@@ -70,6 +122,10 @@ def email_notif():
 
   except Exception as e:
     return f"An Error Occured: {e}"
+
+# =====
+# CHAT ENDPOINTS
+# ====
 
 @app.route('/chat', methods=['GET', 'POST'])
 def chat():
@@ -226,6 +282,7 @@ def reset_password():
 # =====
 # LAUNCH-DATA ENDPOINTS
 # ====
+
 @app.route('/add_launch_data', methods=['POST'])
 def add_launch():
   """
@@ -233,20 +290,11 @@ def add_launch():
   # data = requests.get('https://api.spacexdata.com/v4/launches')
   # response = json.dumps(data.json(), sort_keys = True, indent = 4, separators = (',', ': '))
 
-  doc_ref = db.collection(u'launch').document(u'Falcom 9 | Merlin Mission')
-  doc_ref.set({
-    'id': '0',
-    'company': 'SpaceX',
-    'launch_date': '20/10/2020',
-    'launch_time_unix': 1600510210,
-    'live': True,
-    'launch_site': 'Kennedy Space Center',
-    'mission_title': 'Falcon Heavy Launch',
-    'mission_desc': 'GPS-IIIA (Global Positioning System) is the first evolution stage of the third generation of the GPS satellites. It consists of the first ten (known as "tranche") of GPS III satellites.',
-    'mission_tag': 'AlphaZero',
-    'live_stream': 'https://www.youtube.com/embed/bnChQbxLkkI',
-    'location': 'United States of America'
-  })
+  # Load Target File:
+  data = json.load(open('api_schema/launch_data.json'))
+  for item in data:
+    doc_ref = db.collection(u'launch').document(item['mission_title'])
+    doc_ref.set(item)
   return 'Successful new data Addition'
 
 @app.route('/launch_data', methods=['GET'])
