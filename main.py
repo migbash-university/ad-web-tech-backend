@@ -5,6 +5,10 @@ import base64
 import logging
 import json
 import requests
+import time
+
+import datetime
+from datetime import timezone
 # import dns
 # ---
 from instance import email, mongodb_name, mongodb_uri, password
@@ -17,11 +21,16 @@ import firebase_admin
 from firebase_admin import firestore, credentials, auth
 # ---
 from flask_mail import Mail, Message
+# ---
+# from flask_crontab import Crontab # ONLY WITH LINUX
+# ---
+from apscheduler.schedulers.background import BackgroundScheduler
 
 # ~~~~~~~~~~ Init APP ~~~~~~~~~~
 app = Flask(__name__)
 api = Api(app)
 CORS(app)
+# crontab = Crontab(app)
 
 # ~~~~~~~~~~ Flask FIrebase (Firestore) Config ~~~~~~~~~~
 cred = credentials.Certificate("./arkvision-space-firebase-adminsdk-1x9dn-242ba9ae7e.json")
@@ -109,6 +118,66 @@ def news_unsub(email):
 # NOTIFICATION LAUNCH ENDPOINTS
 # ====
 
+def notifyConfirmEmail(email, launch_id):
+  """
+  confirmEmail(email, launch_id) : sends out email to user confirming the alert subscription to the launch,
+  """
+  email_layout = Message("Notification set! 🚀👩‍🚀", sender='infospaceshadow@gmail.com', recipients=[email])
+  email_layout.html = render_template('notify_confirm.html', email=email, launch_id=launch_id)
+  mail.send(email_layout)
+  return "Success"
+
+def notifyUsersAlertEmail(email, launch_id):
+  with app.app_context():
+    """
+    notifyUsersAlertEmail(email, launch_id) : Sends out email to users registered for a launch to be notified,
+    """
+    email_layout = Message("T-15 Minutes 🚀👩‍🚀", sender='infospaceshadow@gmail.com', recipients=[email])
+    email_layout.html = render_template('alert_notify_launch.html', email=email, launch_id=launch_id)
+    mail.send(email_layout)
+    return "Success"
+
+def cronNotifChecker():
+  """
+  cronNotifChecker(): Checks periodically for uproaching launches to send out notification to registered users within 15 min. of the launch.
+  """
+  try:
+    if app.debug:
+      app.logger.info('Current server time: ' + time.strftime('%A %B, %d %Y %H:%M:%S'))
+    # Get current local UTC time and compare it to the launch time;
+    current_time = datetime.datetime.now(tz=timezone.utc)
+    # Get all the launches and check for the launch times starting in 15 min;
+    doc_ref = db.collection(u'launch')
+    docs = doc_ref.where(u'notified', u'==', False).stream()
+    for doc in docs:
+      launch_date = doc.get("launch_date")
+      time_dif = (launch_date - current_time)
+      if app.debug:
+        app.logger.info(time_dif.total_seconds())
+      # If launch is wihtin 15 min. , trigger the launch alert for the notified users;
+      if (time_dif.total_seconds() < 15 * 60):
+        emails_list = doc.get('notify')
+        for email in emails_list:
+          if app.debug:
+            app.logger.info('Sending email notifcation to -> ' + email + ' for launch: ' + doc.id)
+            # logging.basicConfig()
+            # logging.getLogger('apscheduler').setLevel(logging.DEBUG)
+          notifyUsersAlertEmail(email, doc.id)
+          # set the launch notification set to TRUE;
+        doc_ref.document(doc.id).update({u'notified': True})
+      
+    return jsonify({'ok': 'Success!'})
+
+  except Exception as e:
+    return f"An Error Occured: {e}"
+
+@app.route('/mobile_notif', methods=['POST'])
+def mobile_notif():
+  """
+  """
+
+  return
+
 @app.route('/email_notif', methods=['POST'])
 def email_notif():
   """
@@ -116,12 +185,50 @@ def email_notif():
   """
   try:
     data = request.json
+    email = data['email']
+    launch_id = data['launch_id']
     if app.debug:
-        app.logger.info(data)
-    return 'Email has been sent and notifications has been enabled'
+      app.logger.info(data)
+    # Get the target launch from the schedueled launch mission list, should return only a single launch mission with set ID, or none,
+    doc_ref = db.collection(u'launch')
+    query = doc_ref.where(u'id', u'==', launch_id).stream()
+    for doc in query:
+      if app.debug:
+        app.logger.info(f'{doc.id} => {doc.get("company")}')
+      # set notifcation for the user with set email, automically add a new region to the 'notify' array field
+      doc_ref.document(doc.id).update({u'notify': firestore.ArrayUnion([email])})
+
+    notifyConfirmEmail(email, launch_id) # confirmation notifcaiton set email:
+
+    return jsonify({'ok': 'Success!'})
 
   except Exception as e:
     return f"An Error Occured: {e}"
+
+@app.route('/email_notif_unsub/<string:email>/<string:launch_id>')
+def email_notif_unsub(email, launch_id):
+  """
+  email_notif_unsub() : unsunbsribes the user target user from the launch alert notification,
+  """
+  try:
+    if app.debug:
+      app.logger.info('Email: ' + email + 'Launch ID: ' + launch_id)
+    # Remove email form the email-list alert list for the launch
+    doc_ref = db.collection(u'launch')
+    query = doc_ref.where(u'id', u'==', launch_id).stream()
+    for doc in query:
+      if app.debug:
+        app.logger.info(f'{doc.id} => {doc.get("company")}')
+      doc_ref.document(doc.id).update({u'notify': firestore.ArrayRemove([email])})
+    return render_template('alert_unsub_page.html')
+
+  except Exception as e:
+    return f"An Error Occured: {e}"
+
+# Initialize the Notification Checker Scheduler for Viewing Space launch times - [Working]
+sched = BackgroundScheduler(daemon=True)
+sched.add_job(cronNotifChecker, 'interval', minutes=1,  id='cronNotifChecker', replace_existing=True)
+sched.start()
 
 # =====
 # CHAT ENDPOINTS
@@ -314,11 +421,16 @@ def launch_data():
 
 @app.route('/launch_lib', methods=['GET'])
 def launch_lib():
-  data = requests.get('https://launchlibrary.net/1.4/launch/Falcon')
+  _data = requests.get('https://ll.thespacedevs.com/2.0.0/launch/upcoming/')
   output = []
-  values = data.json()
-  for launch in values['launches']:
-    output.append({'result': launch})
+  data = _data.json()
+  # customize the target API to our needs:
+  for launch in data['results']:
+    output.append({
+      'id': launch['id'],
+      'mission_title' : launch['name'],
+      'launch_time': launch['net']
+    })
   return jsonify({'result' : output})
 
 # =====

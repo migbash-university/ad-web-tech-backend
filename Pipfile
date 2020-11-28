@@ -13,6 +13,8 @@ requests = "*"
 flask-cors = "*"
 twilio = "*"
 firebase-admin = "*"
+flask-crontab = "*"
+apscheduler = "*"
 
 [requires]
 python_version = "3.7"
