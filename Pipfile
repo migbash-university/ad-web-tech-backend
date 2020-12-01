@@ -15,6 +15,7 @@ twilio = "*"
 firebase-admin = "*"
 flask-crontab = "*"
 apscheduler = "*"
+gunicorn = "*"
 
 [requires]
 python_version = "3.7"
