@@ -294,13 +294,13 @@ def register():
     if app.debug:
       app.logger.info(data)
     # Extract data from request
-    display_name = data['user']['username']
+    username = data['user']['username']
     email = data['user']['email']
     password = data['user']['password']
     # Create new user
-    user = auth.create_user(display_name=display_name, email=email, password=password)
+    user = auth.create_user(display_name=username, email=email, password=password)
     # Populate the DB with more data;
-    db.collection(u'users').document(user.uid).set()
+    db.collection(u'users').document(user.uid).set({u'email': email, u'username': username})
     # == TEST ==
     if app.debug:
       app.logger.info('Sucessfully created new user: {0}'.format(user.uid))
@@ -367,14 +367,15 @@ def update_account():
   """
   try:
     data = request.json
+    # == TEST ==
+    if app.debug:
+      app.logger.info(data)
     # Extract data from request
     uid = data['uid']
     email = data['email']
     password = data['password']
     display_name = data['display_name']
-    # == TEST ==
-    if app.debug:
-      app.logger.info(data)
+    
     # Update user with new data
     user = auth.update_user(uid, email, password, display_name)
     # == TEST ==
@@ -400,7 +401,7 @@ def update_account():
   except Exception as e:
     return f"An Error Occured: {e}"
 
-@app.route('/news_fav/<string:uid>', methods=['GET', 'POST'])  # Working & Setup
+@app.route('/api/news_fav/<string:uid>', methods=['GET', 'POST'])  # Working & Setup
 def news_fav(uid):
   """
   news_fav() : Adds news to users favourite news to a list on the DB,
@@ -414,6 +415,9 @@ def news_fav(uid):
     # Get user new_letters ref. from DB
     doc_ref = db.collection(u'users').document(uid)
     favourite_list = doc_ref.get('favourite_news')
+    # == TEST ==
+    if app.debug:
+      app.logger.info(doc_ref)
 
     # Add (POST) favourite news to users list
     if flask.request.method == 'POST':
@@ -530,6 +534,18 @@ def galaxy_data():
   """
   """
   return
+
+# ====
+# ADMIN CONTROL
+# ====
+
+@app.route('/delete_user/<string:user_uid>')
+def delete_user(user_uid):
+  """
+  delete_user() : Deletes a target user from the Database;
+  """
+  auth.delete_user(user_uid, app=None)
+  return {'ok': 'User Successfully deleted'}
 
 # Different API's
 # api.add_resource(HelloWorld, '/tasks')
