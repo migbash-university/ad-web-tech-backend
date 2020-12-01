@@ -273,31 +273,35 @@ def verif_email(email, email_link):
     app.logger.info('Email Send successfully to ' + email)
   return
 
-def reset_password(email, reset_link):
+def reset_password(email, pass_reset_link):
   _email = Message('Password Reset Link', sender='infospaceshadow@gmail.com', recipients=[email])
-  _email.html = '<h1> Do not worry, we got your new password reset link right here: </h1> <br>' + reset_link
-  # _email.html = render_template(template+'.html', **kwargs)
+  _email.html = render_template('user_reset_pass.html', pass_reset_link=pass_reset_link)
   mail.send(_email)
+  # == TEST ==
   if app.debug:
     app.logger.info('Reset link has been sent successfully to ' + email)
   return
 
-@app.route('/api/register', methods=['POST'])
+@app.route('/api/register', methods=['POST'])     # Working & Setup
 def register():
   """
-      register() : Fetches documents from Firestore collection as JSON
-      verif_email(email_link) : Void Function that send out a verification email to a newly registered user.
-      
+  register() : Fetches documents from Firestore collection as JSON
+  verif_email(email_link) : Void Function that send out a verification email to a newly registered user.
   """
   try:
     data = request.json
+    # == TEST ==
     if app.debug:
       app.logger.info(data)
     # Extract data from request
     display_name = data['user']['username']
     email = data['user']['email']
+    password = data['user']['password']
     # Create new user
-    user = auth.create_user(display_name=display_name, email=email)
+    user = auth.create_user(display_name=display_name, email=email, password=password)
+    # Populate the DB with more data;
+    db.collection(u'users').document(user.uid).set()
+    # == TEST ==
     if app.debug:
       app.logger.info('Sucessfully created new user: {0}'.format(user.uid))
     # User email verification
@@ -306,58 +310,82 @@ def register():
     # Return created user information
     user = {
       'uid': user.uid,
+      'username': user.display_name,            # originally display_name
       'email': user.email,
-      'email_verified': user.email,
+      'email_verified': user.email_verified,
       'photo_url': user.photo_url
     }
+    # == TEST ==
     if app.debug:
       app.logger.info(user)
     return jsonify({'user': user})
+    
   except Exception as e:
     return f"An Error Occured: {e}"
 
-@app.route('/api/login', methods=['POST'])
+@app.route('/api/login', methods=['POST'])        # Working & Setup
 def login():
   """
-    login(): Return user login credentials and details
+  login(): Return user login credentials and details
+    creates a separate firestore location for the users additional set of data
   """
   try:
     data = request.json
+    # == TEST ==
     if app.debug:
       app.logger.info(data)
     # Extract data from request
     email = data['user']['email']
+    password = data['user']['password']
     # Create new user
     user = auth.get_user_by_email(email, app=None)
+    # Populate the DB with more data;
+    db.collection(u'users').document(user.uid).set()
+    # == TEST ==
     if app.debug:
       app.logger.info('Sucessfully signed in existing user: {0}'.format(user.email))
     # Return user information
     user = {
       'uid': user.uid,
+      'username': user.display_name,            # originally display_name
       'email': user.email,
-      'email_verified': user.email,
+      'email_verified': user.email_verified,
       'photo_url': user.photo_url
     }
+    # == TEST ==
     if app.debug:
       app.logger.info(user)
+
     return jsonify({'user': user})
+
   except Exception as e:
     return f"An Error Occured: {e}"
 
-@app.route('/api/update', methods=['POST'])
+@app.route('/api/update', methods=['POST'])       # Working & Setup
 def update_account():
   """
+  update_account() : updates target user account with news information from settings page;
+  parameters - { email, password, display_name }
   """
   try:
     data = request.json
+    # Extract data from request
+    uid = data['uid']
+    email = data['email']
+    password = data['password']
+    display_name = data['display_name']
+    # == TEST ==
     if app.debug:
       app.logger.info(data)
-    # Extract data from request
-    uid = data['user']['uid']
     # Update user with new data
-    user = auth.update_user(uid)
+    user = auth.update_user(uid, email, password, display_name)
+    # == TEST ==
     if app.debug:
       app.logger.info('Sucessfully updated user information for existing user: {0}'.format(user.email))
+    # Deal with the password reset for the user, generating a new password reset link:
+    if password != '':
+      pass_reset_link = auth.generate_password_reset_link(email, action_code_settings=None, app=None)
+      reset_password(email, pass_reset_link)
     # Return user information
     user = {
       'uid': user.uid,
@@ -365,23 +393,80 @@ def update_account():
       'email_verified': user.email,
       'photo_url': user.photo_url
     }
+    # == TEST ==
     if app.debug:
       app.logger.info(user)
+
     return jsonify({'user': user})
+
   except Exception as e:
     return f"An Error Occured: {e}"
 
-@app.route('/reset_password', methods=['POST'])
-def reset_password():
+@app.route('/news_fav/<string:uid>', methods=['GET', 'POST'])  # Working & Setup
+def news_fav(uid):
+  """
+  news_fav() : Adds news to users favourite news to a list on the DB,
+  [POST] return - error message
+  [GET] return - news favourite list JSON response
+  """
+  try:
+    # == TEST ==
+    if app.debug:
+      app.logger.info(uid)
+    # Get user new_letters ref. from DB
+    doc_ref = db.collection(u'users').document(uid)
+    favourite_list = doc_ref.get('favourite_news')
+
+    # Add (POST) favourite news to users list
+    if flask.request.method == 'POST':
+      data = request.json
+      # == TEST ==
+      if app.debug:
+        app.logger.info(data)
+      # get target new fav news uid;
+      news_id = data['news_id']
+
+      doc_ref.update({u'favourite_news': news_id})
+      return jsonify({'ok': 'Success!'})
+
+    # Get (GET) favourite news to users list
+    if flask.request.method == 'GET':
+      
+      return jsonify({'fav_news': favourite_list})
+
+  except Exception as e:
+    return f"An Error Occured: {e}"
+
+@app.route('/get_user', methods=['GET'])
+def get_user():
+  """
+  get_user() : get the entire user data and profile information, for an already auth. user
+  return - JSON Response for the user data,
+  """
   try:
     data = request.json
-    if app.debug:
-      app.logger.info(data)
-    # Extract email from data
-    email = data['user']['email']
-    # Send user password reset link:    
-    auth.generate_password_reset_link(email, action_code_settings=None, app=None)
-    return 'Password reset link sent'
+    email = data['email']
+    # Check if email is already registerd on the newsletter list, send conf. email if exists, and add to database,
+    doc_ref = db.collection(u'users').document(email)
+    user_data = doc_ref.get('favourite_news')
+    user_profile = []
+    user_profile = [{ }]
+    return jsonify({'user_profile': favourite_list})
+
+  except Exception as e:
+    return f"An Error Occured: {e}"
+
+# @app.route('/reset_password', methods=['POST'])
+  # def reset_password():
+  #   try:
+  #     data = request.json
+  #     if app.debug:
+  #       app.logger.info(data)
+  #     # Extract email from data
+  #     email = data['user']['email']
+  #     # Send user password reset link:    
+  #     auth.generate_password_reset_link(email, action_code_settings=None, app=None)
+  #     return 'Password reset link sent'
   
   except Exception as e:
     return f"An Error Occured: {e}"
@@ -390,24 +475,26 @@ def reset_password():
 # LAUNCH-DATA ENDPOINTS
 # ====
 
-@app.route('/add_launch_data', methods=['POST'])
+@app.route('/add_launch_data', methods=['POST'])   # Working & Setup
 def add_launch():
   """
+  add_launch() : Add launch data to the DB in .json format
   """
+
   # data = requests.get('https://api.spacexdata.com/v4/launches')
   # response = json.dumps(data.json(), sort_keys = True, indent = 4, separators = (',', ': '))
 
   # Load Target File:
-  data = json.load(open('api_schema/launch_data.json'))
+  data = json.load(open('api_schema/schema_launch_data.json'))
   for item in data:
     doc_ref = db.collection(u'launch').document(item['mission_title'])
     doc_ref.set(item)
   return 'Successful new data Addition'
 
-@app.route('/launch_data', methods=['GET'])
+@app.route('/launch_data', methods=['GET'])        # Working & Setup
 def launch_data():
   """
-    launch_data(): Returns the next 4 upcoming space launches as JSON
+  launch_data(): Returns the next 4 upcoming space launches as JSON
   """
   docs = db.collection(u'launch').stream()
   output = []
@@ -421,6 +508,9 @@ def launch_data():
 
 @app.route('/launch_lib', methods=['GET'])
 def launch_lib():
+  """
+  launch_lib() : [GET] and streamline the launch_lib/api for custom use,
+  """
   _data = requests.get('https://ll.thespacedevs.com/2.0.0/launch/upcoming/')
   output = []
   data = _data.json()
