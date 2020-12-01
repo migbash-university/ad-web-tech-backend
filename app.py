@@ -339,8 +339,6 @@ def login():
     password = data['user']['password']
     # Create new user
     user = auth.get_user_by_email(email, app=None)
-    # Populate the DB with more data;
-    db.collection(u'users').document(user.uid).set()
     # == TEST ==
     if app.debug:
       app.logger.info('Sucessfully signed in existing user: {0}'.format(user.email))
