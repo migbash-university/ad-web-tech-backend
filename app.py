@@ -455,7 +455,6 @@ def set_news_fav():
       app.logger.info(uid)
     # Get user new_letters ref. from DB
     doc_ref = db.collection(u'users').document(uid)
-    favourite_list = doc_ref.get("favourite_news")
     doc = doc_ref.get()
     if doc.exists:
       print(f'Document data: {doc.to_dict()}')
@@ -463,8 +462,8 @@ def set_news_fav():
       return jsonify({'ok': 'Success!'})
 
     else:
-        print(u'No such document!')
-        return jsonify({'ok': 'Error!'})
+      print(u'No such document!')
+      return jsonify({'ok': 'Error!'})
 
   except Exception as e:
     return f"An Error Occured: {e}"
