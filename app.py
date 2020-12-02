@@ -455,7 +455,7 @@ def set_news_fav():
       app.logger.info(uid)
     # Get user new_letters ref. from DB
     doc_ref = db.collection(u'users').document(uid)
-    favourite_list = doc_ref.get(u'favourite_news')
+    favourite_list = doc_ref.get("favourite_news")
     doc = doc_ref.get()
     if doc.exists:
       print(f'Document data: {doc.to_dict()}')
