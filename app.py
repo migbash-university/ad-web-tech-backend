@@ -428,15 +428,15 @@ def get_news_fav():
       app.logger.info(uid)
     # Get user new_letters ref. from DB
     doc_ref = db.collection(u'users').document(uid)
-    favourite_list = doc_ref.get(u'favourite_news')
     doc = doc_ref.get()
     if doc.exists:
       print(f'Document data: {doc.to_dict()}')
-      return jsonify({'fav_news': favourite_list})
+      favourite_list = doc.get("favourite_news")
+      return jsonify({u'fav_news': 'favourite_list'})
     else:
       print(u'No such document!')
       return jsonify({'ok': 'Error!'})
-      
+
   except Exception as e:
     return f"An Error Occured: {e}"
 
@@ -606,6 +606,8 @@ def launch_lib():
       outfile.write(json_object) 
     
   return jsonify({'result' : output})
+
+# @app.route('/')
 
 # =====
 # GALAXY-EXPLORER-DATA ENDPOINTS
