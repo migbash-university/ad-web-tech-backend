@@ -431,11 +431,14 @@ def get_news_fav():
     favourite_list = doc_ref.get(u'favourite_news')
     doc = doc_ref.get()
     if doc.exists:
-        print(f'Document data: {doc.to_dict()}')
-        return jsonify({'fav_news': favourite_list})
+      print(f'Document data: {doc.to_dict()}')
+      return jsonify({'fav_news': favourite_list})
     else:
-        print(u'No such document!')
-        return jsonify({'ok': 'Error!'})
+      print(u'No such document!')
+      return jsonify({'ok': 'Error!'})
+      
+  except Exception as e:
+    return f"An Error Occured: {e}"
 
 @app.route('/api/set_news_fav', methods=['POST'])  # Working & Setup
 def set_news_fav():
