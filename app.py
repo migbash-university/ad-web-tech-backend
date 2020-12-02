@@ -227,9 +227,9 @@ def email_notif_unsub(email, launch_id):
     return f"An Error Occured: {e}"
 
 # Initialize the Notification Checker Scheduler for Viewing Space launch times - [Working]
-# sched = BackgroundScheduler(daemon=True)
-# sched.add_job(cronNotifChecker, 'interval', minutes=1,  id='cronNotifChecker', replace_existing=True)
-# sched.start()
+sched = BackgroundScheduler(daemon=True)
+sched.add_job(cronNotifChecker, 'interval', minutes=1,  id='cronNotifChecker', replace_existing=True)
+sched.start()
 
 # =====
 # CHAT ENDPOINTS
