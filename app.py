@@ -429,10 +429,12 @@ def get_news_fav():
     # Get user new_letters ref. from DB
     doc_ref = db.collection(u'users').document(uid)
     doc = doc_ref.get()
+
     if doc.exists:
       print(f'Document data: {doc.to_dict()}')
       favourite_list = doc.get("favourite_news")
-      return jsonify({u'fav_news': favourite_list})
+      return jsonify({'fav_news': favourite_list})
+
     else:
       print(u'No such document!')
       return jsonify({'ok': 'Error!'})
