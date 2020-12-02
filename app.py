@@ -25,6 +25,7 @@ from flask_mail import Mail, Message
 # from flask_crontab import Crontab # ONLY WITH LINUX
 # ---
 from apscheduler.schedulers.background import BackgroundScheduler
+import calendar
 
 # ~~~~~~~~~~ Init APP ~~~~~~~~~~
 app = Flask(__name__)
@@ -266,8 +267,8 @@ def chat():
 # ====
 
 def verif_email(email, email_link):
-  welcome_email = Message("Please Verify your Email", sender='infospaceshadow@gmail.com', recipients=[email])
-  welcome_email.html = '<h1> Thank you for subscribing to us! </h1> <hr>' + email_link + '<p> We hope you will continue with us in our exciting journey into the future of Fintech & Blockchain! We have much exciting stuff planned for the future, and we would like you to be a part of it! 🤗 </p> <p> ☺️ Help us grow by mentioning us to your friends or via social media. </p> <p> Stay tuned on our social media platforms to keep up-to-date with us and our progress! </p> <hr> <br> <p> For any questions, please email us to contactus@napierfintech.com 24/7 </p> <p> If you consider sponsoring us ❤️, please email us to napierblockchain@gmail.com 24/7 </p> <br> <p> Fintech & Blockchain Society | Edinburgh Napier Univeristy | <b> Striving for Future Knowledge </b> </p>'                                                        #Customize based on user input
+  welcome_email = Message("Welcome to ArkVision! 🚀🌌", sender='infospaceshadow@gmail.com', recipients=[email])
+  welcome_email.html = render_template('verify_email.html', email_link=email_link)
   mail.send(welcome_email)
   if app.debug:
     app.logger.info('Email Send successfully to ' + email)
@@ -300,7 +301,7 @@ def register():
     # Create new user
     user = auth.create_user(display_name=username, email=email, password=password)
     # Populate the DB with more data;
-    db.collection(u'users').document(user.uid).set({u'email': email, u'username': username})
+    db.collection(u'users').document(user.uid).set({u'email': email, u'username': username, u'favourite_news': []})
     # == TEST ==
     if app.debug:
       app.logger.info('Sucessfully created new user: {0}'.format(user.uid))
@@ -426,13 +427,13 @@ def news_fav(uid):
       app.logger.info(uid)
     # Get user new_letters ref. from DB
     doc_ref = db.collection(u'users').document(uid)
-    favourite_list = doc_ref.get('favourite_news')
+    favourite_list = doc_ref.get(u'favourite_news')
     # == TEST ==
     if app.debug:
       app.logger.info(doc_ref)
 
     # Add (POST) favourite news to users list
-    if flask.request.method == 'POST':
+    if request.method == 'POST':
       data = request.json
       # == TEST ==
       if app.debug:
@@ -440,11 +441,11 @@ def news_fav(uid):
       # get target new fav news uid;
       news_id = data['news_id']
 
-      doc_ref.update({u'favourite_news': news_id})
+      doc_ref.update({u'favourite_news': firestore.ArrayUnion([news_id])})
       return jsonify({'ok': 'Success!'})
 
     # Get (GET) favourite news to users list
-    if flask.request.method == 'GET':
+    if request.method == 'GET':
       
       return jsonify({'fav_news': favourite_list})
 
@@ -500,6 +501,8 @@ def add_launch():
 
   # Load Target File:
   data = json.load(open('api_schema/schema_launch_data.json'))
+
+  # Load Target Data:
   for item in data:
     doc_ref = db.collection(u'launch').document(item['mission_title'])
     doc_ref.set(item)
@@ -530,11 +533,61 @@ def launch_lib():
   data = _data.json()
   # customize the target API to our needs:
   for launch in data['results']:
+
+    unix_timestamp = datetime.datetime.strptime(launch['net'], '%Y-%m-%dT%H:%M:%SZ').timestamp()
+
+    id = ''
+    if launch['id'] is None: id = 'nan'
+    else: id = launch['id'] 
+    
+    company = ''
+    if launch['launch_service_provider']['name'] is None: company = 'nan'
+    else: company = launch['launch_service_provider']['name']
+
+    launch_site = ''
+    location = ''
+    if launch['pad'] is None: launch_site = 'nan'
+    else: 
+      launch_site = launch['pad']['name']
+      location = launch['pad']['location']['country_code']
+
+    mission_title = ''
+    mission_tag = ''
+    mission_desc = ''
+    if launch['mission'] is None: mission_title = 'nan' 
+    else: 
+      mission_title = launch['mission']['name']
+      mission_tag = launch['mission']['name']
+      mission_desc = launch['mission']['description']
+
+    launch_date = ''
+    if launch['net'] is None: launch_date = 'nan'
+    else: launch_date = launch['net']
+
     output.append({
-      'id': launch['id'],
-      'mission_title' : launch['name'],
-      'launch_time': launch['net']
+      'id': id,
+      'company': company,
+      'mission_title' : mission_title,
+      'launch_site': launch_site,
+      'launch_time_unix': unix_timestamp,
+      'launch_date': launch_date,
+      'live': False,
+      'mission_desc': mission_desc,
+      'mission_tag': mission_tag,
+      "live_stream": "https://www.youtube.com/embed/bnChQbxLkkI",
+      "location": location,
+      "notified": False,
+      "notify": []
     })
+
+    # Save to a file
+    # Serializing json  
+    json_object = json.dumps(output, indent = 4) 
+      
+    # Writing to sample.json 
+    with open("api_schema/schema_launch_data.json", "w") as outfile: 
+      outfile.write(json_object) 
+    
   return jsonify({'result' : output})
 
 # =====
