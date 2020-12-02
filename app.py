@@ -366,25 +366,36 @@ def update_account():
   parameters - { email, password, display_name }
   """
   try:
+    # declaring user;
+    req_head = request.headers['Authorization']
     data = request.json
+    user = data['user']
     # == TEST ==
     if app.debug:
       app.logger.info(data)
+      app.logger.info(req_head)
     # Extract data from request
-    uid = data['uid']
-    email = data['email']
-    password = data['password']
-    display_name = data['display_name']
-    
-    # Update user with new data
-    user = auth.update_user(uid, email, password, display_name)
+    uid = req_head
+    email = data['user']['email']
+    password = data['user']['password']
+    display_name = data['user']['username']
+    # Deal with the password reset for the user, generating a new password reset link:
+    if password != '':
+      # == TEST ==
+      if app.debug:
+        app.logger.info("Updating with password")
+      user = auth.update_user(uid, email=email, password=password, display_name=display_name)
+      pass_reset_link = auth.generate_password_reset_link(email, action_code_settings=None, app=None)
+      reset_password(email, pass_reset_link)
+    else:
+      # == TEST ==
+      if app.debug:
+        app.logger.info("Updating without password")
+      # Update user with new data
+      user = auth.update_user(uid, email=email, display_name=display_name)
     # == TEST ==
     if app.debug:
       app.logger.info('Sucessfully updated user information for existing user: {0}'.format(user.email))
-    # Deal with the password reset for the user, generating a new password reset link:
-    if password != '':
-      pass_reset_link = auth.generate_password_reset_link(email, action_code_settings=None, app=None)
-      reset_password(email, pass_reset_link)
     # Return user information
     user = {
       'uid': user.uid,
