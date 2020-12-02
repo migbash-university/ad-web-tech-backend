@@ -226,9 +226,9 @@ def email_notif_unsub(email, launch_id):
     return f"An Error Occured: {e}"
 
 # Initialize the Notification Checker Scheduler for Viewing Space launch times - [Working]
-sched = BackgroundScheduler(daemon=True)
-sched.add_job(cronNotifChecker, 'interval', minutes=1,  id='cronNotifChecker', replace_existing=True)
-sched.start()
+# sched = BackgroundScheduler(daemon=True)
+# sched.add_job(cronNotifChecker, 'interval', minutes=1,  id='cronNotifChecker', replace_existing=True)
+# sched.start()
 
 # =====
 # CHAT ENDPOINTS
@@ -399,8 +399,9 @@ def update_account():
     # Return user information
     user = {
       'uid': user.uid,
+      'username': user.display_name,            # originally display_name
       'email': user.email,
-      'email_verified': user.email,
+      'email_verified': user.email_verified,
       'photo_url': user.photo_url
     }
     # == TEST ==
