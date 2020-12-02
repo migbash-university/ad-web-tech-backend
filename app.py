@@ -414,40 +414,46 @@ def update_account():
   except Exception as e:
     return f"An Error Occured: {e}"
 
-@app.route('/api/news_fav/<string:uid>', methods=['GET', 'POST'])  # Working & Setup
-def news_fav(uid):
+@app.route('/api/news_fav', methods=['GET', 'POST'])  # Working & Setup
+def news_fav():
   """
   news_fav() : Adds news to users favourite news to a list on the DB,
   [POST] return - error message
   [GET] return - news favourite list JSON response
   """
   try:
+    data = request.json
+    uid = data['uid']
     # == TEST ==
     if app.debug:
       app.logger.info(uid)
     # Get user new_letters ref. from DB
     doc_ref = db.collection(u'users').document(uid)
-    favourite_list = doc_ref.get(u'favourite_news')
-    # == TEST ==
-    if app.debug:
-      app.logger.info(doc_ref)
+    doc = doc_ref.get()
+    if doc.exists:
+        print(f'Document data: {doc.to_dict()}')
+    else:
+        print(u'No such document!')
+    return
+    # favourite_list = doc_ref.get(u'favourite_news')
+   
 
-    # Add (POST) favourite news to users list
-    if request.method == 'POST':
-      data = request.json
-      # == TEST ==
-      if app.debug:
-        app.logger.info(data)
-      # get target new fav news uid;
-      news_id = data['news_id']
+    # # Add (POST) favourite news to users list
+    # if request.method == 'POST':
+    #   data = request.json
+    #   # == TEST ==
+    #   if app.debug:
+    #     app.logger.info(data)
+    #   # get target new fav news uid;
+    #   # news_id = data['news_id']
 
-      doc_ref.update({u'favourite_news': firestore.ArrayUnion([news_id])})
-      return jsonify({'ok': 'Success!'})
+    #   doc_ref.update({u'favourite_news': firestore.ArrayUnion([news_id])})
+    #   return jsonify({'ok': 'Success!'})
 
-    # Get (GET) favourite news to users list
-    if request.method == 'GET':
+    # # Get (GET) favourite news to users list
+    # if request.method == 'GET':
       
-      return jsonify({'fav_news': favourite_list})
+    #   return jsonify({'fav_news': favourite_list})
 
   except Exception as e:
     return f"An Error Occured: {e}"
